@@ -130,3 +130,33 @@
 2. 依赖关系: Dependencies 父 RDD 和 子 RDD 之间的关系
     + 窄依赖(Narrow Dependency): 父分区可以一一对应到子分区： map, filter,union 等操作，每个分区可以并行操作。
     + 宽依赖(Wide Dependency)： 父RDD的每个分区被多个子RDD的分区使用: join,groupBy，必须等父RDD的所有分区被计算好之后才能开始处理。
+
+### RDD 转换操作
+1. 转换(Transformation): 把一个 RDD 转换成另一个 RDD： map, filter, groupBy, 生成新的RDD,并且记录依赖关系，Spark 并不会立刻计算出新 RDD 中各个分区的数值。直到遇到一个动作时，数据才会被计算，并且输出结果给 Driver
+2. 动作(Action): 通过计算返回一个结果:Collect,reduce,count,CountByKey
+
+惰性求值：不需要读取整份数据。
+Spark 在每次转换操作的时候，使用新的 RDD 来记录计算逻辑，这样就把作用在 RDD 上所有的计算逻辑串起来，形成一个链条。当对 RDD 进行动作时，Spark 会从计算连的最后一个 RDD 开始，依次从上一个 RDD 获取数据并执行计算逻辑。最后输出结果
+
+每当我们对 RDD 调用一个新的 action 操作时，整个 RDD 都会从头开始运算。如果 RDD 被反复复用的话，每次都从头计算非常低效，我们应该对多次使用的 RDD 进行一个持久操作将 RDD 的数据缓存到内存和硬盘中
+persist() 和 cache()
+```
+rdd = sc.parallelize([1, 2, 3, 4, 5])
+rdd1 = rdd.map(lambda x: x+5)
+rdd2 = rdd1.filter(lambda x: x % 2 == 0)
+rdd2.persist()
+count = rdd2.count() // 3
+first = rdd2.first() // 6
+rdd2.unpersist()
+
+```
+
+### Spark SQL 
+DataSet: 底层基于 RDD 实现。和 RDD 一样也是不可变的分布式数据单元。既有与 RDD 类似的各种转换和动作函数定义。而且还享受Spark SQL 优化过的执行引擎。使得数据搜索效率更高。
+内部包含了：逻辑计划，即生成该数据集所需要的运算。
+当动作操作执行时，SparkSQL 的查询优化器会优化这个逻辑计划，并生成一个可以分布式执行的，包含分区信息的物理计划。
+是 Spark SQL 中的一个组件， DataSet也具有关系数据库中表的特性，数据被组织到有名字+类型的列中（Schema）
+
+DataFrame: 一种特殊的 DataSet，每一列不存储类型信息。每一行固定类型为 ROW
+
+DataFrame 和 DataSet 比 RDD 性能要好

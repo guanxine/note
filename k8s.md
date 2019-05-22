@@ -254,3 +254,17 @@ http://192.168.131.1/auth-service/v1/users;jsessionid=67A3B51C925E8C866352DDE450
   995  cat auth-api/auth-api.yaml 
 
 ```
+
+
+尽快熟悉：
+首先，在本地通过 Docker 测试代码，制作镜像； 
+然后，选择合适的 Kubernetes API 对象，编写对应 YAML 文件（比如，Pod，Deployment)
+最后，在 Kubernetes 上部署这个 YAML 文件
+
+## pod 容器设计模式
+只是一个逻辑概念，是一组共享了某些资源的容器，共享的是同一个 network namespace, 并且可以声明共享同一个 volume. 之间靠（Infra（k8s.gcr.io/pause） 容器关联，它最先启动 ）
+
+同一个pod的容器
+1. 可以通过 localhost 进行通信
+2. 看到的网络设备和 Infra 容器一样
+3. 一个 pod 只有一个 ip 地址，也就是这个 pod 的 network namespace 对应的 ip 地址
