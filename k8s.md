@@ -262,9 +262,102 @@ http://192.168.131.1/auth-service/v1/users;jsessionid=67A3B51C925E8C866352DDE450
 最后，在 Kubernetes 上部署这个 YAML 文件
 
 ## pod 容器设计模式
+namespace 隔离，cgroup 限制，rootfs 文件系统
+容器本质是进程，单进程模型，并不是说只能运行一个进程，而是值容器没有管理多个进程的能力，k8s 操作系统
 只是一个逻辑概念，是一组共享了某些资源的容器，共享的是同一个 network namespace, 并且可以声明共享同一个 volume. 之间靠（Infra（k8s.gcr.io/pause） 容器关联，它最先启动 ）
 
 同一个pod的容器
 1. 可以通过 localhost 进行通信
 2. 看到的网络设备和 Infra 容器一样
 3. 一个 pod 只有一个 ip 地址，也就是这个 pod 的 network namespace 对应的 ip 地址
+
+进出流量都是通过 Infra 容器完成的。
+
+pod 而不是容器才是 k8s 的最小编排单位。
+容器（Container）就成了 pod 属性里的一个普通字段。
+pod 当作是传统环境中的“机器”，把容器看作是运行在这个“机器”里的“用户程序”
+调度（运行在哪个服务器），网络（网卡），存储（磁盘），安全（防火墙）相关的属性，基本都是 pod 级别
+
+凡是跟 linux namespace 相关的属性，一定是 pod 级别的。
+pod 重要字段
+1. NodeSelector: pod 和 node 绑定
+2. NodeName
+3. HostAliases: 定义了 pod 的 host 文件(/etc/hosts)，设置 host 文件里的内容一定要通过这样的方式，否则在 pod 被删除重建之后，kubelet 会自动覆盖被修改的内容
+4. Container
+  + Image : 镜像
+  + Command: 命令
+  + workingDir: 容器的工作目录
+  + Ports: 端口
+  + volumeMounts: 挂在的 volume 
+  + ImagePullPolicy: 镜像拉去策略，默认是 Always, 每次创建 pod 都重新拉去一次镜像，Never 不主动拉去镜像，IfNotPresent 在主机上不存在时这个镜像时才拉去。
+  + Lifecycle: 
+    - postStart: Docker 容器 ENTRYPOINT 执行之后开始执行，是异步的。postStart 开始执行可能 ENTRYPOINT 还没有结束
+    - preStop: 同步的，优雅退出。先执行 preStop 后 kill 容器
+
+pod 生命周期主要体现在 pod api 对象的 Status 部分， 是除了 Metadata 和 Spec 之外第三个重要字段
+pod.status.phase 为当前状态
+1. pending ：  pod 里有些容器因为某种原因不能被顺利创建，比如调度不成功
+2. Running: 调度成功
+3. Succeeded: 所有容器都正常运行完毕，并且已经退出。运行一次任务常见
+4. Failed: 至少有一个容器不正常退出
+5. Unknown: 异常状态，pod 的状态不能持续的被 kubelet 汇报给 kube-apiserver. 可能主从节点（Master 和 kubelet）间通信出现了问题。
+
+Project Volume
+有几个特殊的 Volume 不是为了存容器里的数据，也不是用来进行容器和宿主机之间的数据交换。是为容器预先定义好数据
+1. Secret: 把 pod 想要访问的加密数据存放到 Etcd 中。然后便可以通过pod的容器里挂在 Volume 的方式，访问到这些 Secret 里保存的信息了，场景：存放数据库密码
+2. ConfigMap
+3. Downward API
+4. ServiceAccountToken
+
+
+控制器模式
+1. Deployment
+
+
+pod 对容器的进一步抽象和封装。k8s 操作 pod 的逻辑，都是由 Controller 完成 -> Deployment
+Deployment
+1. 控制器定义
+2. 被控制对象 -> template 叫做 PodTemplate
+
+可以水平扩展/收缩， 由 ReplicaSet(对象) 实现。 Deployment -> ReplicaSet -> 多个副本 pod 
+
+StatefulSet
+多个实例之间有依赖关系，主从，主备关系 以及 实例对外部数据有依赖关系的应用，被成为 “有状态应用” Stateful Application
+1. 拓扑状态， 多个实例关系不对等。
+2. 存储状态，多个实例分别绑定了不同的存储数据
+
+StatefulSet 的核心功能，就是通过某种方式记录这些状态，然后 pod 被重新创建时，能够为新 pod 恢复这些状态。
+
+Headless Service
+用户只要访问 Service , 就能访问到某个 Pod, Service 如何被访问
+1. 以 Service 的 VIP 方式（Virtual IP, 即：虚拟IP）。 比如访问 10.0.23.1 这个 Service 的 IP 地址时，10.0.23.1 其实就是一个 VIP。它会把请求转发到该
+Service 所代理的某个 pod 上。
+2. 以 Service 的 DNS 方式。
+  + Normal Service: 解析出来是 VIP
+  + Headless Service: 解析出来是代理的某一个 pod 的IP， 不需要 VIP，直接以 DNS 记录的方式解析出被代理的 pod 的ip地址： clusterIP: None， 会以 DNS 记录的方式暴露出它所代理的 pod. 所有 pod 的 IP 会绑定一个这样的DNS 记录 ```<pod-name>.<svc-name>.<namespace>.svc.cluster.local``` 知道了Service名字和pod名字就可以访问到 pod 的 ip.
+  
+
+  1. StatefulSet 的控制器直接管理的是 pod , 有编号
+  2. k8s 通过 Headless Service 为这些有编号的 pod 生成有编号的 DNS 
+  3. StatefulSet 为有编号的 pod 分配有编号的 pvc 
+
+
+## 网路
+一个容器可看到的网络栈，被隔离在自己的 Network 
+网络栈： 网卡（Network Interface）, 回环设备(Loopback Device), 路由表（Routing table） 和 iptables.
+
+大多数下我们都希望容器进程能使用自己的 Network namespace 里的网络栈，即：拥有自己的ip和端口
+
+被隔离的容器如何跟其他 Network namespace 里的容器通信呢。
+两台：连线
+多台：交换机
+Linux 能够起到虚拟交换机作用的网络设备是网桥(Bridge), 工作在数据链路层的设备，根据 mac 地址将数据包转发到网桥的不同端口
+
+docker 会默认在宿主机上创建一个 docker0 的网桥，凡是链接在 docker0 网桥上的容器，就可以通过它来通信。
+如何链接？需要 veth pair 的虚拟设备，可以看作是链接不同 Network namespace 的网线。
+
+网络插件：通过某种方法，把不同宿主机上的特殊设备连通，从而达到容器跨主机通信的目的。
+
+k8s: cni 网桥， 宿主机上默认名称：cni0
+
+
