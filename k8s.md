@@ -361,3 +361,26 @@ docker 会默认在宿主机上创建一个 docker0 的网桥，凡是链接在 
 k8s: cni 网桥， 宿主机上默认名称：cni0
 
 
+## Service
+1. ClusterIP 
+
+Service 由 kube-proxy 组件，加上 iptables 来共同完成的。
+
+2. 有 0x4000 标记的会被 SNAT
+
+## 外界联通 Service
+所谓 Service 的访问入口，其实就是每台主机上由 kube-proxy 生成的 iptables 规则，以及 kube-dns 生成的 dns 记录，而一旦离开了这个集群，这些信息对用户来说，也就自然没有作用了。
+如何从外部 k8s 集群之外，访问到 k8s 里创建的 Service.
+1. NodePort
+
+
+## Ingress 
+Service 的 Service
+IngressRule
+
+
+
+
+1. 弄一个 service ， 多个副本，查看一下iptables 
+
+
