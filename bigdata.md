@@ -160,3 +160,22 @@ DataSet: 底层基于 RDD 实现。和 RDD 一样也是不可变的分布式数�
 DataFrame: 一种特殊的 DataSet，每一列不存储类型信息。每一行固定类型为 ROW
 
 DataFrame 和 DataSet 比 RDD 性能要好
+
+### Spark Streaming 
+DataFrame 和 DataSet 都是基于批处理模式对静态数据进行处理的。比如，在每天某个特定的时间对一天的日志进行处理分析。
+Spark Streaming 的原理和微积分的思想很类似。
+提供了一个对于流数据抽象 DStream.
+DStream 可以由 Kafka, Flume 和 HDFS 的流数据生成，也可以由别的 DStream 经过各种转换操作得来。底层 DStream 由很多个序列化的 RDD 构成，按时间片（比如一秒）切分成的每个数据单位都是一个RDD。 对 DStream 的 Transformation 操作变成针对 Spark 中对 RDD 的 Transformation 操作，将 RDD 经过操作变成中间结果保存在内存中。
+
+#### 滑动窗口操作
+任何一个 Spark Streaming 的程序都要首先创建一个 StreamingContext 的对象，它是所有 Streaming 操作的入口。
+StreamingContext 中最重要的参数是批处理的时间（接收到时间而不是数据本身产生时间）间隔。即把流数据细分成数据块的粒度。
+时间间隔决定了流处理的延迟性。
+
+统计热点词例子：每隔 10s 输出过去 60s 内排名前 10 位的热点词。
+1. 窗口长度（window length）: 每次统计的数据的时间跨度。例子中60s
+2. 滑动间隔: 每次统计的时间间隔，例子中10s
+
+缺点：
+Spark Streaming 主要缺点是实时计算延迟较高，一般在秒级别。
+准实时和实时系统，Spark Streaming 是一个准实时系统。别的流处理框架，如 Strom 延迟性就好很多，可以做到毫秒级。
