@@ -384,3 +384,6 @@ IngressRule
 1. 弄一个 service ， 多个副本，查看一下iptables 
 
 
+nginx ingress controller 提供的服务，其实是一个可以根据 Ingress 对象和被代理后端 Service, 来自动更新的 nginx 负载均衡器
+为了让用户能用到这个 nginx. 我们需要创建一个 Service 把 nginx ingress controller 管理的 nginx 服务暴露出去。
+
