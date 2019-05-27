@@ -96,5 +96,49 @@ synchronized 配合 wait(),notify(),notifyAll() 这几个方法在 synchronized 
 2. 减少锁持有时间，互斥锁的本质将并行的程序串行化。
   + 使用细粒度锁：ConcurrentHashMap，采用了分段锁的技术
   + 读写锁: 读是无锁的，只有写的时候才会互斥。
+性能方面给有3个指标
+1. 吞吐量: 单位时间内能处理的请求数量，吞吐量越高，性能越好
+2. 延迟: 发出请求到收到响应的时间，延迟越小，性能越好
+3. 并发量:能同时处理的请求数量，一般来说并发量增加，延迟也会增加。所以延迟是基于并发量来说的。比如并发1000，延迟是50毫秒 
+
+## 管程
+管理共享变量以及对共享变量的操作过程，让他们支持并发。
+Java: 管理类成员变量和成员方法。让这个类线程安全。
+
+并发两大核心问题
+1. 互斥：同一时刻只允许一个线程访问共享资源
+2. 同步：线程之间如何通信，协作
+
+MESA 模型
+每个条件变量都对应一个等待队列。
+1. 入队，队列满，等到队列不满（notFull.await()）, 入队后，队列就不空了，通知（队列不空）条件变量:可通知出队。
+2. 出队，队列空，等待队列不空 (notEmpty.await())，出队后，队列就不满了，通知（队列不满）条件变量：可通知入队。
+
+## 生命周期
+通用线程的生命周期：
+1. 初始状态
+2. 可运行状态
+3. 运行状态
+4. 休眠状态
+5. 终止状态
+
+Java 中线程生命周期
+1. NEW
+2. RUNNABLE
+  3. BLOCKED, 4. WAITING, 5. TIMED_WAITING: 细分了休眠状态，只要 JAVA 处于这三种状态之一，那么这个线程永远没有 CPU 使用权。
+6. TERMINATED
+
+RUNNABLE 和 BLOCKED 相互转换： synchronized 修饰的方法或者代码块
+RUNNABLE 和 WAITING 相互转换：Object.wait()/ threadA.join()/
+RUNNABLE 和 TIMED_WAITING 相互转换：Thread.sleep(time)/Object.wait(time)
+
+
+stop 和 interrupt 区别
+
+stop 杀死线程，如果有 ReentrantLock 锁，不会 unlock() 释放锁。
+interrupt 仅仅通知线程，线程有机会执行一些后续操作，同时也可以无视这个通知。
+两种方式收到通知
+1. 异常: 调用 ta.interrupt()（中断标志）, 当 ta 处于 WAITING,TIMED_WAITING 状态时，会使线程返回到RUNNABLE状态，并抛出 InterruptedException， 并且中断标志被清楚了。
+2. 主动检测: 当调用了 ta.interrupt()，当 ta 处于 RUNNABLE 并且没有阻塞在 IO 操作上，可通过 ta.isInterrupted 方法检测自己是不是被中断了
 
 
