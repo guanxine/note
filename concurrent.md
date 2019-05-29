@@ -279,3 +279,76 @@ V原语(up/release)：唤醒原语, 负责把一个被阻塞的进程唤醒。�
 ## 如何让多线程保持步调一致
 1. CountDownLatch: 一个线程等待多个线程的场景，不能循环利用，一旦计数器减为0，再有线程调用 await(), 会直接通过
 2. CyclicBarrier: 一组线程之间的相互等待，可以循环利用，具备自动重置，一旦计数器减到0会自动重置到你设置的初始值，可以设置回调函数。计数器=0时回调执行。
+
+## 并发容器
+Java 容器分类
+1. List
+2. Map
+3. Set
+5. Queue
+
+如何将线程不安全的容器,组合容器 变成线程安全的。 
+Collections.synchronizedXxx().
+组合操作需要注意竞态条件，即便每个操作能保证原子性，也并不能保证组合操作的原子性。
+
+容器领域有一个容易被忽视的坑，用迭代器遍历容器。
+
+同步容器：Vector,Stack 和 Hashtable 基于 synchronized 实现,对这三个容器遍历同样需要加锁保证互斥。
+
+同步容器：Collections.synchronizedXxx() 包装实现，Vector,Stack 和 Hashtable
+
+### 并发容器
+java 1.5 之前所谓线程安全的容器都是同步容器。都用 synchronized 来保证互斥，串行度太高，
+性能差。在 1.5 和 之后提供了性能更高的容器。我们一般称为并发容器。
+1. List: CopyOnWriteArrayList. 写时将共享变量复制一份出来。好处读操作无锁。
+  + 遍历操作基于原 array 执行，写操作复制一份，基于新的 array 进行
+  + 场景：写操作非常少，能容忍读写短暂的不一致
+  + 迭代器只读（遍历的仅是快照）。
+2. Map: ConcurrentHashMap(key 无序), ConcurrentSkipListMap（key 有序）， ConcurrentSkipListMap 并发性能更高。
+3. Set: CopyOnWriteArraySet 和 ConcurrentSkipListSet
+4. Queue: 并发容器里最复杂的
+  + 阻塞(Blocking)与非阻塞: 阻塞当队列满时，入队操作阻塞。当队列空时，出队操作阻塞
+  + 单端(Queue)与双端(Deque)
+
+  使用队列时注意是否支持有界，实际工作中一般不建议使用无界队列。数量大后很容易 OOM。
+
+
+## 原子类：无锁
+原子类：硬件支持。 CPU 为了解决并发问题，提供了 CAS 指令。
+指令包含3个参数： 共享变量内存地址A,用于比较的值B,共享变量的新值C. 只有当内存地址A的值等于B时，才能将内存中地址A处的值更新为新值C.
+作为一条 CPU 指令，CAS 指令本身是能够保证原子性的。
+
+使用 CAS 解决并发问题，一般都伴随着自旋，其实就是循环尝试。
+
+## Executor与线程池
+创建一个线程：需要调用操作系统内核的 API, 然后操作系统要为线程分配一系列的资源。所以线程是个重量级的对象，应该避免频繁的创建和销毁。
+目前业界线程池设计，普遍都是生产者-消费者模式。线程池的使用方是生产者（创建任务提交给线程池中的队列），线程池本身是消费者（线程池中的线程消费队列中的任务）。
+
+Java 中的线程池：ThreadPoolExecutor
+
+```
+ThreadPoolExecutor(
+  int corePoolSize, // 线程池中有的最小线程数。
+  int maximumPoolSize, // 线程池创建的最大线程数。任务比较多是，增加线程，并不是无限制的增加。最多到 maximumPoolSize, 任务少时，减少线程，减少到 corePoolSize 为止。
+  long keepAliveTime, // 
+  TimeUnit unit, // keepAliveTime & unit 定义一段时间，如果一个线程空闲了一段时间这么久，而且线程池中线程池数大于 corePoolSize, 这个空闲线程要被回收。
+  BlockingQueue<Runnable> workQueue, // 工作队列，生产者-消费者
+  ThreadFactory threadFactory, // 如何创建线程，例如给线程指定一个有意义的名字。
+  RejectedExecutionHandler handler// 自定义任务的拒绝策略，如果线程池中所有的线程都在忙碌，并且工作队列也满了（工作队列是有界队列），那么提交任务，就会被拒绝接受。有4中策略，默认抛异常
+  ) 
+```
+注意：
+1. 构造函数复杂，有 Executors 静态工厂类来快速创建线程。规范都不建议使用。原因是：Executors 提供的默认方法，默认使用都是无界 LinkedBlockingQueue 高负载下，无界队列很容易 OOM, 而 OOM 会导致所有请求无法处理。强烈建议所有队列使用有界队列。
+2. 有界队列，当任务过多时，会执行拒绝策略，默认抛出一个运行时异常，建议自定义拒绝策略 + 降级策略配合使用（将任务信息保存数据库，mq,redis，本地文件）
+3. 线程池异常处理，通过 ThreadPoolExecutor 对象的 execute 提交任务时，如果任务执行过程中出现运行时异常，会导致执行任务线程终止，却得不到任何通知，误以为任务执行正常。虽然线程池提供了很多异常处理方法，最稳妥还是和简单的方案还是捕获所有异常，按需处理。
+```
+try {
+  // 业务处理
+}
+catch(RuntimeException x) {
+  // 按需处理
+}
+catch(Throwable x) {
+  // 按需处理
+}
+```
