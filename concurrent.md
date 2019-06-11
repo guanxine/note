@@ -352,3 +352,97 @@ catch(Throwable x) {
   // 按需处理
 }
 ```
+
+## Future 获取任务执行结果
+使用 Future 可以很容易获取异步任务的执行结果。Future 可以类比为现实世界里的提货单。利用多线程可以快速将一些串行化的任务并行化。
+如果任务之间有依赖，比如当前任务依赖前一个任务的执行结果。这种问题基本上都可以用，Future 类解决。
+
+简单的并行任务可以通过：线程池 +Future
+
+## CompletableFuture(1.8)
+异步编程
+异步化，是并行方案得以实现的基础。
+异步编程大大的优化了性能。
+
+任务之间有聚合关系，无论是 AND 聚合还是 OR 聚合都可以通过 CompletableFuture 解决。
+
+
+## CompletionService 
+批量执行异步任务
+内部维护了一个阻塞队列，当任务执行结束，就把任务的执行结果（Future）加入到阻塞队列中
+
+解决批量的并行任务。
+
+## Fork/Join
+并发编程：分工，协作和互斥。
+关注任务，已经从并发编程的细节中跳了出来，类比的往往是现实世界里的分工（线程池，Future,CompletableFuture,CompletionService）
+
+任务模型
+1. 简单并行
+2. 聚合
+3. 批量并行
+4. 分治：把一个复杂的问题分解成多个相似的子问题，知道子问题可以直接求解。对问题的分治，也就是对任务的分治。
+
+Fork: 对应的是分支任务模型里的任务分解。
+Join: 对应的是结果的合并
+1. 分治任务线程池：ForkJoinPool
+2. 分治任务：ForkJoinTask
+这两部分的关系类似于 ThreadPoolExecutor 和 Runnable 的关系，可以理解为提交任务到线程池，不过分治任务有自己独特的类型 ForkJoinTask
+
+
+
+## Immutability 模式
+如何利用不变性解决并发问题
+
+快速实现具有不变性的类：将一个类所有的属性都设置成 final, 并且只允许存在只读的方法。这个类基本就具备不可变性了。
+如果需要提供类似修改的功能，怎么办？创建一个新的不可变对象（String, Long, Integer,Double 等基本包装类，都是不可变类）
+
+创建类过多？
+利用享元模式(Flyweight Pattern)避免创建重复对象。
+本质是一个对象池，创建前先看看对象池中是不是存在，如果已经存在，就利用对象池里的对象，如果不存在，就创建一个新对象，并且把新创建的对象放进对象池中。
+
+模式需要注意两点
+1. 对象的所有属性都是 final 的，并不能保证不可变性（如果属性的类型是一个普通对象，这个普通对象里的属性是可以被修改的。）
+2. 不可变对象需要正确的发布（可见性->volatile，原子性->原子类）
+
+## Copy-on-Write模式（COW）
+String,Long等基本包装类都是基于 COW 实现的。缺点，每次修改都复制一个新对象出来，消耗内存。
+写时复制
+CopyOnWriteArrayList，CopyOnWriteArraySet 复制的是整个数组，经常被修改的数组本身非常的大，不建议使用
+lock & volidate (lock 写，volidate 读副本)
+
+1. Copy-on-Write 可以做到按需复制
+避免共享，若共享，保证共享的是线程安全的。
+
+## 线程本地模式：避免共享
+ThreadLocal
+
+Thread -> ThreadLocalMap<ThreadLocal<WeakReference>,Value>
+
+ThreadLocal 内存泄漏
+线程池中线程存活时间太长，往往和程序生命周期一样。
+因为 Thread 持有的 ThreadLocalMap 一直都不会被回收。弱引用ThreadLocal会被回收，但是 value 不会被回收。
+需要手动释放资源 remove                    
+
+避免共享有两个方案：
+1. 将这个工具类作为局部变量使用。缺点： 高并发场景下会频繁的创建对象。
+2. 线程本地存储方案
+
+创建的对象：threadlocal=线程数，局部变量=调用量
+
+## Guarded Suspension模式
+等待唤醒机制
+多线程版本的 if 模式， 会等待条件。
+##  Balking模式
+如果不适合或者没必要执行这个操作，就停止处理，直接返回
+再谈线程安全的单例模式
+
+## Thread-Per-Message模式
+最简单实用的分工方法： 为每个任务分配一个对立的线程
+在 java 领域不知名，是因为 java 语言里的线程是一个重量级的对象。可以使用 Fiber 
+在 go 和 lua 语言里的协程，本质上就是一种轻量级的线程。
+1. 网络编程里服务端的实现
+
+## Worker Thread模式
+避免重复创建线程
+
