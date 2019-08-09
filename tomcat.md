@@ -1,3 +1,25 @@
+
+## 读代码
+### 启动
+Bootstrap 
+main
+    init()
+        createClassLoader
+        catalinaDaemon = new Catalina()
+    setAwait()
+        catalinaDaemon.setAwait()
+    load() // start a new server instance
+        catalinaDaemon.load()
+            digester = createStartDigester() // 解析 conf/server.xml
+            digester.parse(inputstream) // JAXPSAXParser.parse(inputstream)
+            StandardServer.init(); // Catalina 从 conf/server.xml 中解析得到
+                    LifecycleBase.init()
+                        StandardServer.initInternal()
+                            services[i].init()
+                                StandardService.initInternal()
+                        state: LifecycleState.NEW -> LifecycleState.INITIALIZED
+
+
 ## 服务接入层
 反向代理 Nginx, API 网关 Node.js
 ## 业务逻辑层
