@@ -5,19 +5,30 @@ Bootstrap
 main
     init()
         createClassLoader
-        catalinaDaemon = new Catalina()
+        catalinaDaemon = new Catalina() // 反射
     setAwait()
         catalinaDaemon.setAwait()
     load() // start a new server instance
         catalinaDaemon.load()
             digester = createStartDigester() // 解析 conf/server.xml
-            digester.parse(inputstream) // JAXPSAXParser.parse(inputstream)
+            digester.parse(inputstream) // JAXPSAXParser.parse(inputstream)，之后 catalina 包含了 server.xml 中的所有对象
             StandardServer.init(); // Catalina 从 conf/server.xml 中解析得到
                     LifecycleBase.init()
                         StandardServer.initInternal()
                             services[i].init()
                                 StandardService.initInternal()
+                                    Container.init() 
+                                        -> StandardEngine.init() -> ContainerBase.init() -> LifecycleMBeanBase.initInternal()
+                                    Executor.init()
+                                        StandardThreadExecutor
+
+                                
                         state: LifecycleState.NEW -> LifecycleState.INITIALIZED
+
+## 设计模式
+工厂，
+Chain of Responsibility
+event/listener
 
 
 ## 服务接入层
