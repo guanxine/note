@@ -11,19 +11,50 @@ main
     load() // start a new server instance
         catalinaDaemon.load()
             digester = createStartDigester() // 解析 conf/server.xml
+                        Server:org.apache.catalina.core.StandardServer
+                        Server/GlobalNamingResources:org.apache.catalina.deploy.NamingResourcesImpl
+                        Server/Service:org.apache.catalina.core.StandardService
+                        Server/Service/Executor:org.apache.catalina.core.StandardThreadExecutor'
+                        Server/Service/Connector:server.xml
             digester.parse(inputstream) // JAXPSAXParser.parse(inputstream)，之后 catalina 包含了 server.xml 中的所有对象
             StandardServer.init(); // Catalina 从 conf/server.xml 中解析得到
-                    LifecycleBase.init()
-                        StandardServer.initInternal()
-                            services[i].init()
-                                StandardService.initInternal()
-                                    Container.init() 
-                                        -> StandardEngine.init() -> ContainerBase.init() -> LifecycleMBeanBase.initInternal()
-                                    Executor.init()
-                                        StandardThreadExecutor
+                StandardServer.initInternal()
+                    services[i].init()
+                        StandardService.initInternal()
+                            Container.init() 
+                                -> StandardEngine.initInternal() -> ContainerBase.initInternal() -> LifecycleMBeanBase.initInternal()
+                            Executor.init()
+                                StandardThreadExecutor.initInternal()
+                                (通过 TaskQueue 重写 offer 方法从而改变了线程池得行为:先核心,再到达最大线程，最后如队列)
+                            MapperListener.init()
 
-                                
-                        state: LifecycleState.NEW -> LifecycleState.INITIALIZED
+                            Connector.initInternal()
+                                -> protocolHandler = org.apache.coyote.http11.Http11NioProtocol
+                                -> protocolHandler = org.apache.coyote.ajp.AjpNioProtocol
+
+                                -> adapter = CoyoteAdapter
+                                    -> Http11NioProtocol.init()
+                                        NioEndpoint.init() -> AbstractEndpoint.init()
+                state: LifecycleState.NEW -> LifecycleState.INITIALIZED
+    start()
+        catalinaDaemon.start()
+            StandardServer.startInternal()
+                state: LifecycleState.STARTING
+                services[i].start()
+                    StandardService.startInternal()
+                        StandardEngine.startInternal() -> ContainerBase.initInternal()
+                    Executor.start()
+                        StandardThreadExecutor.start()//tomcat-exec-
+                            taskqueue = new TaskQueue(maxQueueSize=Integer.MAX_VALUE) // 可以设置
+                            executor = new ThreadPoolExecutor(25, 200, 60000, TimeUnit.MILLISECONDS, taskqueue, tf);
+                            默认false:executor.prestartAllCoreThreads();
+                    MapperListener.start()
+                    Connector.start()
+                            -> org.apache.coyote.http11.Http11NioProtocol.start()
+                            -> org.apache.coyote.ajp.AjpNioProtocol.start()
+                                NioEndpoint.start() //
+
+
 
 ## 设计模式
 工厂，
