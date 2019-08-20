@@ -30,11 +30,26 @@ main
 
                             Connector.initInternal()
                                 -> protocolHandler = org.apache.coyote.http11.Http11NioProtocol
+                                -> org.apache.coyote.http11.Http11Protocol
                                 -> protocolHandler = org.apache.coyote.ajp.AjpNioProtocol
 
                                 -> adapter = CoyoteAdapter
+                                    -> Http11Protocol.init()
+                                        JIoEndpoint.init() // one listener thread accepts on a socket 
+                                                           // and creates a new worker thread for each incoming connection
+                                            serverSocket = serverSocketFactory.createSocket(getPort(), getBacklog(), getAddress()) 
+                                                           // new ServerSocket (port, backlog, ifAddress)
+                                            handler: Http11ConnectionHandler
                                     -> Http11NioProtocol.init()
-                                        NioEndpoint.init() -> AbstractEndpoint.init()
+                                        NioEndpoint.init()
+                                            serverSock = ServerSocketChannel.open()
+                                            serverSock.socket().bind()
+                                            NioSelectorPool.open()// Thread safe non blocking selector pool 看不懂了
+                                                SHARED_SELECTOR = Selector.open() // 单例
+                                                NioBlockingSelector
+                                                    sharedSelector
+                                                    poller = new BlockPoller()
+                                            stopLatch = availableProcessors
                 state: LifecycleState.NEW -> LifecycleState.INITIALIZED
     start()
         catalinaDaemon.start()
@@ -51,9 +66,24 @@ main
                     MapperListener.start()
                     Connector.start()
                             -> org.apache.coyote.http11.Http11NioProtocol.start()
+                            -> org.apache.coyote.http11.Http11Protocol.start()
+                                JIoEndpoint.start()
+                                     -> executor =  new ThreadPoolExecutor(10, 200, 60, TimeUnit.SECONDS,taskqueue, tf)
+                                     -> acceptorThreadCount 个 // Start acceptor threads 
+                                            Acceptor // Server socket acceptor thread
+                                                -> getExecutor().execute(new SocketProcessor(new SocketWrapper<Socket>(socket)));
+                                                    -> Http11ConnectionHandler.process(socket, SocketStatus.OPEN); // inner Http11Protocol  
+                                                        Http11Protocol
+                                                        Http11Processor = createProcessor() // Processes HTTP requests.
+                                                            -> processor.process(socket)
+                                                                -> Request
+                                                                -> Response
+
                             -> org.apache.coyote.ajp.AjpNioProtocol.start()
                                 NioEndpoint.start() //
-
+                                    executor =  new ThreadPoolExecutor(10, 200, 60, TimeUnit.SECONDS,taskqueue, tf)
+                                    poller threads -> Poller
+                                    acceptor threads
 
 
 ## 设计模式
