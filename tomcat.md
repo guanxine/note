@@ -75,10 +75,15 @@ main
                                                     -> Http11ConnectionHandler.process(socket, SocketStatus.OPEN); // inner Http11Protocol  
                                                         Http11Protocol
                                                         Http11Processor = createProcessor() // Processes HTTP requests.
-                                                            -> processor.process(socket)
-                                                                -> Request
+                                                                -> Request(-> inputBuffer)
                                                                 -> Response
-
+                                                            -> processor.process(socket)
+                                                                    -> inputBuffer.setInputStream(socket.getSocket().getInputStream());
+                                                                    -> outputBuffer.setOutputStream(socket.getSocket().getOutputStream());
+                                                                    -> inputBuffer.parseRequestLine(false)
+                                                                    -> inputBuffer.parseHeaders()
+                                                                    -> prepareRequest
+                                                                    
                             -> org.apache.coyote.ajp.AjpNioProtocol.start()
                                 NioEndpoint.start() //
                                     executor =  new ThreadPoolExecutor(10, 200, 60, TimeUnit.SECONDS,taskqueue, tf)
